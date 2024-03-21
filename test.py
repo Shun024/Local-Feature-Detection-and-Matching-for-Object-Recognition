@@ -2,11 +2,16 @@ import os
 import sys
 import cv2
 import numpy as np
-import matplotlib as plt
+import matplotlib.pyplot as plt
 from scipy import ndimage, spatial
 
 INPUT_DIRECTORY = "./COMP37212/"
 OUTPUT_DIRECTORY = "./results/"
+
+#check if results directory exists, if not creates it
+if not os.path.exists(OUTPUT_DIRECTORY):
+    # Create the directory if it doesn't exist
+    os.makedirs(OUTPUT_DIRECTORY)
 
 """
 image: mat
@@ -35,7 +40,7 @@ def HarrisPointsDetector(
     y_gradient_64 = ndimage.sobel(image_64, axis=0, mode="reflect")
 
     # Compute the combinations between the gradients
-    orientations = np.rad2deg(np,arctan2(y_gradient_64, x_gradient_64))
+    orientations = np.rad2deg(np.arctan2(y_gradient_64, x_gradient_64))
 
     # Compute the cominations between the gradients for M Matrix: (I_x)^2, (I_y)^2, (I_x)(I_y)
     x2_gradient_64 = np.square(x_gradient_64)
@@ -77,7 +82,7 @@ def HarrisPointsDetector(
         no_kps = [0] * len(thresholds)
 
         for i in range(len(thresholds)):
-            threshold = np,max(r) * thresholds[i]
+            threshold = np.max(r) * thresholds[i]
             if features is not None:
                 keypoints = [ keypoint for keypoint in features if keypoint.response >= threshold
                 ]
@@ -91,7 +96,7 @@ def HarrisPointsDetector(
     
     # Find the threshold
     # If the response value of the keypoint is greater than threshold, return the keypoint, else don't
-    threshold = np.max(r) * threshold
+    threshold = np.max(r) * threshold_value
     if features is not None:
         keypoints = [ keypoint for keypoint in features if keypoint.response >= threshold
         ]
@@ -103,6 +108,12 @@ def featureDescriptor(image, keypoints):
 
     return descriptor
 
+"""
+Calculate squared Euclidean distance between the two feature vectors
+and matches a feature in the first inage with the closest features in the second image
+
+NOTE: There is possibility of having the same multiple features from the first image with the second image
+"""
 def SSDFeatureMatcher(ref_desc, sample_desc):
     if ref_desc.shape[0] == 0 or sample_desc[0] == 0:
         return []
@@ -119,11 +130,12 @@ def SSDFeatureMatcher(ref_desc, sample_desc):
 Uses a ratior of SSD distance of the two best matches and 
 matches a feature in the first image with the cloeset feature in the second image.
 
-NOTE: There is possibility of having the same multiple features from the first image with the second image"""
+NOTE: There is possibility of having the same multiple features from the first image with the second image
+"""
 def RatioFeatureMatcher(ref_desc, sample_desc, ratio=0.75):
     if ref_desc[0] == 0 or sample_desc[0] == 0:
         return []
-    distances = cdist(ref_desc, sample_desc, 'sqeuclidean')
+    distances = spatial.distance.cdist(ref_desc, sample_desc, 'sqeuclidean')
     matches = []
     for i, dist in enumerate(distances):
         idx1 = i
@@ -136,7 +148,6 @@ def RatioFeatureMatcher(ref_desc, sample_desc, ratio=0.75):
     return matches
 
 if __name__ == "__main__":
-
     # Open beernieSanders.jpg as reference image 
     reference_image = cv2.imread("bernieSanders.jpg", cv2.IMREAD_COLOR)
 
@@ -145,7 +156,7 @@ if __name__ == "__main__":
         print("Error: Failed to open the required image (bernieSanders.jpg")
         sys.exit(1)
 
-    # Convert the colored referenced image to gray
+    # Begin: Convert the colored referenced image to gray
     reference_gray_image = cv2.cvtColor(reference_image, cv2.COLOR_BGR2GRAY)
 
     ## ORB Built in Points Detector ##
@@ -157,20 +168,26 @@ if __name__ == "__main__":
     orb_kps, orb_desc = orb.compute(reference_image, orb_kps)
     # Draw keypoints
     gray_kps = cv2.drawKeypoints(reference_gray_image,orb_kps, None, color=(0, 0, 255), flags=0)
+
+    ## End: ORB Built in Points Detector ##
+
     # Output image for comparison discussion in report
     cv2.imwrite(OUTPUT_DIRECTORY + "orb_built_in_features.jpg", gray_kps.astype(np.uint8))
 
-    ## Own Harris Points Detector Implementation ##
+
+    ## Begin: Own Harris Points Detector Implementation ##
     harris_ref_kps = HarrisPointsDetector(reference_gray_image, graph=True)
     harris_ref_image = cv2.drawKeypoints( reference_gray_image, harris_ref_kps, None, color=(0, 0, 255), flags=0)
 
     # Find descriptor using the keypoints from own Harris Points Detector
     harris_ref_desc = featureDescriptor(reference_gray_image, harris_ref_kps)
 
+    ## End: Own Harris Points Detector Implementation ##
+
     # Output image for comparison discussion in report
-    cv2.imwrite(OUTPUT_DIRECTORY + "harris_implementation_features.jpg", harris_ref_kps.astype(np.uint8))
+    cv2.imwrite(OUTPUT_DIRECTORY + "harris_implementation_features.jpg", harris_ref_image.astype(np.uint8))
 
-
+    # Loop through all images in the input directory to find keypoints and match
     for file in os.listdir(INPUT_DIRECTORY):
         if file == ".DS_Store":
             continue
